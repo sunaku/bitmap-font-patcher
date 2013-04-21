@@ -3,11 +3,13 @@
 
 import sys
 from collections import Counter
+from itertools import count
 from PIL.Image import new as new_image
 from PIL.ImageDraw import Draw
 from PIL.ImageFont import truetype
 import fontforge
 import os
+import operator
 
 try:
     from __builtin__ import unichr
@@ -48,6 +50,9 @@ class Patcher(object):
         self.tt = truetype(fontfile, self.size[1])
         self.ff = fontforge.open(fontfile)
 
+    def has_codepoint(self, codepoint):
+        return codepoint in self.codepoints
+
     def list_codepoints(self):
         for glyph in self.ff.glyphs():
             cp = glyph.unicode
@@ -79,9 +84,6 @@ class BdfPatcher(Patcher):
             return "%0*X" % (rowWidth * 2, value << paddingBits)
         self.get_data_line = get_data_line
 
-    def has_codepoint(self, codepoint):
-        return codepoint in self.codepoints
-
     def add_glyph(self, codepoint, name, img):
         data = []
         for y in range(self.size[1]):
@@ -100,17 +102,173 @@ class BdfPatcher(Patcher):
                                      codepoint=codepoint)
 
     def can_patch(self):
-        return self.fnt.properties['CHARSET_REGISTRY'] == 'ISO10646'
+        return self.fnt.properties.get('CHARSET_REGISTRY', 'ISO10646') == 'ISO10646'
 
-    def write(self, out):
+    def dump(self, out):
         from bdflib.writer import write_bdf
         write_bdf(self.fnt, out)
 
 
-patcher = BdfPatcher()
+class TxtGlyph(object):
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+
+    def parse(self, f):
+        for line in f:
+            if line.startswith('//'):
+                continue
+            elif line.startswith('Bitmap: '):
+                if hasattr(self, 'bitmap'):
+                    raise ValueError('Double bitmap field')
+                self.parse_bitmap(f, line[len('Bitmap: '):])
+            elif line.startswith('Unicode: '):
+                if hasattr(self, 'codepoints'):
+                    raise ValueError('Double unicode field')
+                self.parse_unicode(line[len('Unicode: '):])
+            elif line == '%\n':
+                break
+
+        if not (hasattr(self, 'codepoints') and hasattr(self, 'bitmap')):
+            raise ValueError('Codepoint and/or bitmap is not set')
+
+    def parse_unicode(self, line):
+        self.codepoints = []
+        self.seqcodepoints = []
+        for point in line.split(';'):
+            point = point.lstrip('[').rstrip(']\n')
+            if point:
+                seq = point.split('+')
+                if len(seq) > 1:
+                    self.seqcodepoints.append(tuple((int(cp, 16) for cp in seq)))
+                elif seq and seq[0]:
+                    self.codepoints.append(int(seq[0], 16))
+
+    def parse_bitmap(self, f, line):
+        self.bitmap = [False] * (self.width * self.height)
+        toparse = line
+        pointer = 0
+        while toparse:
+            char = toparse[0]
+            toparse = toparse[1:]
+            if char == '-':
+                pointer += 1
+            elif char == '#':
+                self.bitmap[pointer] = True
+                pointer += 1
+            elif char == '\\':
+                toparse += next(f)
+            elif char in ' \n\t\r':
+                continue
+            else:
+                raise ValueError('Unknown bitmap character: ' + repr(char))
+
+    def set_codepoint(self, codepoint):
+        if hasattr(self, 'codepoints'):
+            self.codepoints.add(codepoint)
+        else:
+            self.codepoints = set((codepoint,))
+            self.seqcodepoints = set()
+
+    def dump(self, out):
+        out.write('Bitmap: ' + ''.join(('#' if char else '-' for char in self.bitmap)) + '\n')
+        out.write('Unicode: ' + ';'.join(['[%x]' % cp for cp in  self.codepoints]
+                                         + ['[' + ('+'.join(('%x' % cp for cp in seq))) + ']'
+                                            for seq in self.seqcodepoints]) + '\n')
+        out.write('%\n')
+
+
+class TxtFont(object):
+    headervals = ('Version', 'Flags', 'Length', 'Width', 'Height')
+    def __init__(self, f):
+        self.parse_header(f)
+        self.glyphs = []
+        self.codepoints = set()
+        for i in range(self.length):
+            glyph = self.parse_glyph(f)
+            self.glyphs.append(glyph)
+            self.codepoints.update(glyph.codepoints)
+
+    def parse_header(self, f):
+        if next(f) != '%PSF2\n':
+            raise ValueError('Expected file start')
+
+        headervals = set(self.headervals)
+
+        for line in f:
+            if line == '%\n':
+                break
+            key, val = line.partition(': ')[::2]
+            val = int(val)
+            if key not in headervals:
+                raise ValueError('Unexpected key: ' + key)
+            headervals.remove(key)
+            setattr(self, key.lower(), val)
+
+        if headervals:
+            raise ValueError('Missing headers: ' + ', '.join(headervals))
+
+    def parse_glyph(self, f):
+        glyph = TxtGlyph(self.width, self.height)
+        glyph.parse(f)
+        return glyph
+
+    def new_glyph_from_bitmap(self, bitmap, codepoint):
+        glyph = TxtGlyph(self.width, self.height)
+        glyph.set_codepoint(codepoint)
+        glyph.bitmap = bitmap
+        self.glyphs.append(glyph)
+        self.codepoints.add(codepoint)
+        self.length += 1
+
+    def dump_header(self, out):
+        out.write('%PSF2\n')
+        for header in self.headervals:
+            out.write(header + ': ' + str(getattr(self, header.lower())) + '\n')
+        out.write('%\n')
+
+    def dump(self, out):
+        self.dump_header(out)
+        for glyph in self.glyphs:
+            glyph.dump(out)
+
+
+class TxtPatcher(Patcher):
+    def __init__(self):
+        self.fnt = TxtFont(sys.stdin)
+        self.codepoints = self.fnt.codepoints
+        self.size = (self.fnt.width, self.fnt.height)
+
+    def add_glyph(self, codepoint, name, img):
+        bitmap = [False] * reduce(operator.mul, self.size)
+        pointer = 0
+        for y in range(self.size[1]):
+            for x in range(self.size[0]):
+                if not img.getpixel((x, y)):
+                    bitmap[pointer] = True
+                pointer += 1
+        self.fnt.new_glyph_from_bitmap(bitmap, codepoint)
+
+    def can_patch(self):
+        # flags == 1 mean unicode font
+        return self.fnt.flags == 1
+
+    def dump(self, out):
+        self.fnt.dump(out)
+
+
+def select_patcher(argv):
+    try:
+        pclass = globals()[argv[0].title() + 'Patcher']
+    except IndexError:
+        pclass = BdfPatcher
+    return pclass(*argv[1:])
+
+
+patcher = select_patcher(sys.argv[1:])
 
 if patcher.can_patch():
     patcher.set_font(powerline_font)
     patcher.patch()
 
-patcher.write(sys.stdout)
+patcher.dump(sys.stdout)

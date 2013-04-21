@@ -1,5 +1,5 @@
 Font patcher for [powerline](https://github.com/Lokaltog/powerline) that patches 
-BDF fonts
+BDF and PSF fonts
 
 Installation
 ------------
@@ -13,9 +13,18 @@ To work with this font patcher you need the following python packages:
 
         pip install --user git+git://gitorious.org/bdflib/mainline.git
 
+  Optional, you don't need it unless you want to patch bdf font.
+
 - [fontforge](http://fontforge.org) python bindings
-- bdftopcf and pcf2bdf CLI tools (optional, but highly recommended)
-- coreutils, zcat, bzip2 and POSIX-compatible shell
+
+The following software is required for patchdir.sh to work. It is optional but 
+highly recommended.
+
+- bdftopcf and pcf2bdf CLI tools
+- [psftools](http://www.seasip.info/Unix/PSF/), namely psf2txt and txt2psf 
+  utilities
+- coreutils, zcat, bzip2 and any POSIX-compatible shell (busybox is known to 
+  work)
 
 Patching
 --------
@@ -35,15 +44,20 @@ fonts in it use
 
 . This will copy all files from `source-directory` to `target-directory`. Files 
 ending with `.pcf` will be transformed into BDF files, patched and then 
-transformed back, `.bdf` ones will be patched, `.gz` or `.bz2` files are first 
-uncompressed and then compressed back in the target directory. Files in source 
-directory are not modified. Behavior in case source and target directories are 
-the same directories is undefined, but you will likely just get a bunch of 
-errors and corrupt or empty font files.
+transformed back, similar for `.psf` files (but they are transformed to TXT), 
+`.bdf` ones will be patched, `.gz` or `.bz2` files are first uncompressed and 
+then compressed back in the target directory. Files in source directory are not 
+modified. Behavior in case source and target directories are the same 
+directories is undefined, but you will likely just get a bunch of errors and 
+corrupt or empty font files.
 
 
 Additional requirements
 -----------------------
 
 If BDF font does not claim that it is written for `ISO10646` encoding it will 
-not be patched.
+not be patched. It may not claim they are written for any encoding at all 
+though.
+
+For TXT fonts must also claim they are using unicode. This is recognized by 
+`Flags:` field set to 1 (see `man txt2psf`). Only PSF2 fonts are supported.

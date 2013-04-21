@@ -21,6 +21,7 @@ procfile()
     transform="cat"
     untransform="cat"
     patcher="cat"
+    pargs=
 
     if test -d "$srcf" ; then
         (
@@ -57,10 +58,16 @@ procfile()
         (*.bdf)
             patcher="$powerline_patcher"
             ;;
+        (*.psf)
+            transform="psf2txt"
+            untransform="txt2psf"
+            patcher="$powerline_patcher"
+            pargs="txt"
+            ;;
         (*)
             ;;
     esac
-    $unzip < "$realsrcf" | $transform | "$patcher" | $untransform | $zip > "$dstf"
+    $unzip < "$realsrcf" | $transform | "$patcher" $pargs | $untransform | $zip > "$dstf"
 }
 
 if test "x$src" = "x" ; then
