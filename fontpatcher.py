@@ -9,13 +9,14 @@ from PIL.Image import new as new_image
 from PIL.ImageDraw import Draw
 from PIL.ImageFont import truetype
 import fontforge
+import os
 
 try:
     from __builtin__ import unichr
 except ImportError:
     unichr = chr
 
-powerline_font = '/home/zyx/.vam/powerline/font/PowerlineSymbols.otf'
+powerline_font = os.path.join(os.path.dirname(__file__), 'powerline', 'font', 'PowerlineSymbols.otf')
 
 class SkipIter(object):
     def __init__(self, it):
