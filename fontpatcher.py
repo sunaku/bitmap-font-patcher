@@ -35,15 +35,14 @@ fnt = read_bdf(SkipIter(sys.stdin))
 if fnt.properties['CHARSET_REGISTRY'] == 'ISO10646':
     sizes = Counter(((glyph.advance, glyph.get_bounding_box()) for glyph in fnt.glyphs))
     advance, bb = sizes.most_common()[0][0]
-    size = bb[-1:-3:-1]
+    size = bb[2:]
 
     tt = truetype(powerline_font, size[1])
     ff = fontforge.open(powerline_font)
 
     codepoints = set(fnt.codepoints())
 
-    rowWidth, extraBits = divmod(size[1], 8)
-    fnt.glyphs[0].get_data()
+    rowWidth, extraBits = divmod(size[0], 8)
     if extraBits > 0:
         rowWidth += 1
         paddingBits = 8 - extraBits
@@ -59,18 +58,18 @@ if fnt.properties['CHARSET_REGISTRY'] == 'ISO10646':
         draw = Draw(img)
         draw.text((0, 0), unichr(codepoint), font=tt, fill='#000000')
         data = []
-        for x in range(size[0]):
+        for y in range(size[1]):
             value = 0
-            for y in range(size[1]):
-                value |= (1 if img.getpixel((x, y)) else 0) << y
-            data.append(get_data_line(value))
+            for x in range(size[0]-1, -1, -1):
+                value |= (0 if img.getpixel((x, y)) else 1) << (size[0] - x - 1)
+            data.insert(0, get_data_line(value))
         data.reverse()
         fnt.new_glyph_from_data(name=name,
                                 data=data,
                                 bbX=bb[0],
                                 bbY=bb[1],
-                                bbW=size[1],
-                                bbH=size[0],
+                                bbW=bb[2],
+                                bbH=bb[3],
                                 advance=advance,
                                 codepoint=codepoint)
 write_bdf(fnt, sys.stdout)
