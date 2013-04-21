@@ -14,11 +14,26 @@ test -d "$dst" || mkdir -p "$dst" || exit $?
 procfile()
 {
     srcf="$1"
+    dstf="$dst/`basename $srcf`"
+
     unzip="cat"
     zip="cat"
     transform="cat"
     untransform="cat"
     patcher="cat"
+
+    if test -d "$srcf" ; then
+        (
+            dst="$dstf"
+            src="$srcf"
+            test -d "$dst" || mkdir -p "$dst" || exit $?
+            for srcf in "$src/"* ; do
+                procfile "$srcf"
+            done
+        )
+        return $?
+    fi
+
     echo ">>> $srcf"
     realsrcf="$srcf"
     case "$srcf" in
@@ -45,7 +60,6 @@ procfile()
         (*)
             ;;
     esac
-    dstf="$dst/`basename $realsrcf`"
     $unzip < "$realsrcf" | $transform | "$patcher" | $untransform | $zip > "$dstf"
 }
 
