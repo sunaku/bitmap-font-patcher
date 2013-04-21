@@ -14,7 +14,9 @@ try:
 except ImportError:
     unichr = chr
 
+
 powerline_font = os.path.join(os.path.dirname(__file__), 'powerline', 'font', 'PowerlineSymbols.otf')
+
 
 class SkipIter(object):
     def __init__(self, it):
@@ -28,6 +30,7 @@ class SkipIter(object):
 
     def __iter__(self):
         return self
+
 
 class Patcher(object):
     def get_image(self):
