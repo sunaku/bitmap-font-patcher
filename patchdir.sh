@@ -1,12 +1,19 @@
 #!/bin/sh
-src="$1"
-dst="$2"
-tmp="`mktemp`"
 powerline_patcher="`dirname $0`/fontpatcher.py"
+if test "x$1" = "x-f" ; then
+    shift
+    dst="$1"
+    shift
+else
+    src="$1"
+    dst="$2"
+fi
 
 test -d "$dst" || mkdir -p "$dst" || exit $?
 
-for srcf in "$src"/* ; do
+procfile()
+{
+    srcf="$1"
     unzip="cat"
     zip="cat"
     transform="cat"
@@ -40,4 +47,14 @@ for srcf in "$src"/* ; do
     esac
     dstf="$dst/`basename $realsrcf`"
     $unzip < "$realsrcf" | $transform | "$patcher" | $untransform | $zip > "$dstf"
-done
+}
+
+if test "x$src" = "x" ; then
+    for srcf in "$@" ; do
+        procfile "$srcf"
+    done
+else
+    for srcf in "$src"/* ; do
+        procfile "$srcf"
+    done
+fi
