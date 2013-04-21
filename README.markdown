@@ -60,4 +60,20 @@ not be patched. It may not claim they are written for any encoding at all
 though.
 
 For TXT fonts must also claim they are using unicode. This is recognized by 
-`Flags:` field set to 1 (see `man txt2psf`). Only PSF2 fonts are supported.
+`Flags:` field set to 1 (see `man txt2psf`). Only PSF2 fonts are supported. Also 
+note that you will likely need to replace some glyphs: putfont refuses to load 
+font if there are more then 512 glyphs in it. For this job `patchfont.sh` and 
+`fontpatcher.py` provide additional arguments:
+
+    zcat psf-font.psf.gz | psf2txt | python fontpatcher.py txt 'AB;AC;AD'
+
+or
+
+    sh patchdir.sh -a 'AB;AC;AD' source-directory target-directory
+
+or
+
+    sh patchdir.sh -a 'AB;AC;AD' -f target-directory psf-font*
+
+will replace glyphs with codepoints `AB`, `AC` and `AD` (patchdir determines 
+font format based on extension). For BDF fonts replacing is not supported.
