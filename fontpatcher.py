@@ -183,11 +183,11 @@ class TxtFont(object):
     def __init__(self, f):
         self.parse_header(f)
         self.glyphs = []
-        self.codepoints = set()
+        self.codepoints = {}
+        self.remove_glyphs = set()
         for i in range(self.length):
             glyph = self.parse_glyph(f)
-            self.glyphs.append(glyph)
-            self.codepoints.update(glyph.codepoints)
+            self.add_glyph(glyph)
 
     def parse_header(self, f):
         if next(f) != '%PSF2\n':
@@ -213,13 +213,30 @@ class TxtFont(object):
         glyph.parse(f)
         return glyph
 
+    def add_glyph(self, glyph, idx=None):
+        if idx is None:
+            idx = len(self.glyphs)
+            self.glyphs.append(None)
+        if glyph.codepoints:
+            self.codepoints[next(iter(glyph.codepoints))] = idx
+        self.glyphs[idx] = glyph
+
     def new_glyph_from_bitmap(self, bitmap, codepoint):
         glyph = TxtGlyph(self.width, self.height)
         glyph.set_codepoint(codepoint)
         glyph.bitmap = bitmap
-        self.glyphs.append(glyph)
-        self.codepoints.add(codepoint)
+        self.add_glyph(glyph, idx=(self.remove_glyphs.pop() if self.remove_glyphs else None))
         self.length += 1
+
+    def rm_codepoint(self, codepoint):
+        idx = self.codepoints.pop(codepoint)
+        glyph = self.glyphs[idx]
+        self.glyphs[idx] = None
+        for cp in glyph.codepoints:
+            if cp != codepoint:
+                self.codepoints.pop(cp)
+        self.remove_glyphs.add(idx)
+        self.length -= 1
 
     def dump_header(self, out):
         out.write('%PSF2\n')
@@ -230,16 +247,24 @@ class TxtFont(object):
     def dump(self, out):
         self.dump_header(out)
         for glyph in self.glyphs:
-            glyph.dump(out)
+            if glyph:
+                glyph.dump(out)
 
 
 class TxtPatcher(Patcher):
-    def __init__(self):
+    def __init__(self, replcps=None):
+        if replcps:
+            self.replcps = set((int(cpstr, 16) for cpstr in replcps.split(';')))
+        else:
+            self.replcps = None
         self.fnt = TxtFont(sys.stdin)
         self.codepoints = self.fnt.codepoints
         self.size = (self.fnt.width, self.fnt.height)
 
     def add_glyph(self, codepoint, name, img):
+        if self.replcps is not None:
+            replcp = self.replcps.pop()
+            self.fnt.rm_codepoint(replcp)
         bitmap = [False] * reduce(operator.mul, self.size)
         pointer = 0
         for y in range(self.size[1]):

@@ -1,5 +1,11 @@
 #!/bin/sh
 powerline_patcher="`dirname $0`/fontpatcher.py"
+pargsbase=
+if test "x$1" = "x-a" ; then
+    shift
+    pargsbase="$1"
+    shift
+fi
 if test "x$1" = "x-f" ; then
     shift
     dst="$1"
@@ -21,7 +27,7 @@ procfile()
     transform="cat"
     untransform="cat"
     patcher="cat"
-    pargs=
+    pargs="bdf $pargsbase"
 
     if test -d "$srcf" ; then
         (
@@ -62,7 +68,7 @@ procfile()
             transform="psf2txt"
             untransform="txt2psf"
             patcher="$powerline_patcher"
-            pargs="txt"
+            pargs="txt $pargsbase"
             ;;
         (*)
             ;;
