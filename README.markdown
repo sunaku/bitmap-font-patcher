@@ -13,7 +13,7 @@ To work with this font patcher you need the following python packages:
 
         pip install --user git+git://gitorious.org/bdflib/mainline.git
 
-  Optional, you don't need it unless you want to patch bdf font.
+    Optional, you don't need it unless you want to patch bdf font.
 
 - [fontforge](http://fontforge.org) python bindings
 
