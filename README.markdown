@@ -37,7 +37,9 @@ fonts in it use
 ending with `.pcf` will be transformed into BDF files, patched and then 
 transformed back, `.bdf` ones will be patched, `.gz` or `.bz2` files are first 
 uncompressed and then compressed back in the target directory. Files in source 
-directory are not modified.
+directory are not modified. Behavior in case source and target directories are 
+the same directories is undefined, but you will likely just get a bunch of 
+errors and corrupt or empty font files.
 
 
 Additional requirements
