@@ -5,6 +5,7 @@ import sys
 from collections import Counter
 from itertools import count
 from PIL.Image import new as new_image
+from PIL.Image import open as open_image
 from PIL.ImageDraw import Draw
 from PIL.ImageFont import truetype
 import fontforge
@@ -35,7 +36,7 @@ class SkipIter(object):
 
 
 class Patcher(object):
-    def get_image(self):
+    def gen_image(self):
         return new_image('1', self.size, '#FFFFFF')
 
     def draw_glyph(self, img, codepoint):
@@ -43,8 +44,15 @@ class Patcher(object):
         draw.text((0, 0), unichr(codepoint), font=self.tt, fill='#000000')
         return img
 
+    def gen_glyph_image(self, codepoint):
+        gfile = os.path.join(os.path.dirname(__file__), 'glyphs', 'x'.join((str(i) for i in self.size)), '%08x' % codepoint)
+        if os.path.isfile(gfile):
+            return open_image(gfile)
+        else:
+            return self.draw_glyph(self.gen_image(), codepoint)
+
     def add_codepoint(self, codepoint, name):
-        return self.add_glyph(codepoint, name, self.draw_glyph(self.get_image(), codepoint))
+        return self.add_glyph(codepoint, name, self.gen_glyph_image(codepoint))
 
     def set_font(self, fontfile):
         self.tt = truetype(fontfile, self.size[1])
