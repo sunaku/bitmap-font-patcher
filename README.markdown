@@ -11,7 +11,7 @@ To work with this font patcher you need the following python packages:
 - [bdflib](https://pypi.python.org/pypi/bdflib). Note that installation from pip 
   is currently broken, use
 
-        pip install --user git+git://gitorious.org/bdflib/mainline.git
+        pip install --user git+https://gitlab.com/Screwtapello/bdflib.git
 
     Optional, you don't need it unless you want to patch bdf font.
 
